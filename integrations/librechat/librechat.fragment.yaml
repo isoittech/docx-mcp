@@ -1,0 +1,25 @@
+# この fragment は既存 librechat.yaml へ手動でマージする例です。
+# caller header の placeholder は LibreChat version に依存します。
+# 利用 version の公式 schema/source と実リクエストで正確な名前・展開を確認し、
+# 未確認のまま本番投入しないでください。詳細: docs/librechat-integration.md
+mcpSettings:
+  allowedDomains:
+    - "word-mcp"
+
+mcpServers:
+  word:
+    type: streamable-http
+    url: http://word-mcp:8080/mcp
+    timeout: 65000
+    chatMenu: true
+    serverInstructions: true
+    apiKey:
+      source: admin
+      key: "${WORD_MCP_SHARED_SECRET}"
+      authorization_type: bearer
+    # headers.Authorization は設定しない。apiKey の Bearer 構成を使う。
+    headers:
+      X-LibreChat-User-ID: "{{LIBRECHAT_USER_ID}}"
+      # 次の conversation/message 候補は利用 version で必ず検証する。
+      X-LibreChat-Conversation-ID: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
+      X-LibreChat-Message-ID: "{{LIBRECHAT_BODY_MESSAGEID}}"

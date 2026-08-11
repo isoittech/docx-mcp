@@ -1,0 +1,82 @@
+# 既存 LibreChat compose へ手動で統合する例。
+# image digest、service/path/network 名、secret 注入、resource limit は導入環境で確認する。
+services:
+  api:
+    depends_on:
+      word-mcp:
+        condition: service_healthy
+    environment:
+      WORD_MCP_SHARED_SECRET: ${WORD_MCP_SHARED_SECRET:?WORD_MCP_SHARED_SECRET is required}
+    networks:
+      - default
+      - word-mcp
+
+  word-mcp:
+    image: word-mcp:local
+    environment:
+      WordMcp__SharedSecret: ${WORD_MCP_SHARED_SECRET:?WORD_MCP_SHARED_SECRET is required}
+      WordMcp__ArtifactSigningKey: ${WORD_MCP_ARTIFACT_SIGNING_KEY:?WORD_MCP_ARTIFACT_SIGNING_KEY is required}
+      WordMcp__ScopeHmacKey: ${WORD_MCP_SCOPE_HMAC_KEY:?WORD_MCP_SCOPE_HMAC_KEY is required}
+      WordMcp__PublicBaseUrl: ${WORD_MCP_PUBLIC_BASE_URL:?WORD_MCP_PUBLIC_BASE_URL is required}
+      WordMcp__StorageRoot: /data/word-mcp
+      WordMcp__LibreChatUploadsRoot: /data/librechat-uploads
+      WordMcp__TemplatesRoot: /data/word-templates
+      WordMcp__DefaultTemplateId: ${WORD_MCP_DEFAULT_TEMPLATE_ID:-}
+      WordMcp__FirstAssistantNotice: ${WORD_MCP_FIRST_ASSISTANT_NOTICE:-}
+      WordMcp__LocalDevelopment: "false"
+    user: "1654:1654"
+    networks:
+      - word-mcp
+    volumes:
+      - ${WORD_MCP_STORAGE_PATH:?WORD_MCP_STORAGE_PATH must be an absolute host path}:/data/word-mcp:rw
+      - ${WORD_MCP_UPLOADS_PATH:?WORD_MCP_UPLOADS_PATH must be an absolute host path}:/data/librechat-uploads:ro
+      - ${WORD_MCP_TEMPLATES_PATH:?WORD_MCP_TEMPLATES_PATH must be an absolute host path}:/data/word-templates:ro
+    read_only: true
+    tmpfs:
+      - /tmp/word-mcp:rw,noexec,nosuid,nodev,size=512m,uid=1654,gid=1654,mode=0700
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  word-artifact-proxy:
+    image: nginx:1.31.3-alpine3.24
+    depends_on:
+      word-mcp:
+        condition: service_healthy
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    user: "101:101"
+    networks:
+      - word-mcp
+      - word-public
+    ports:
+      # 外部 HTTPS ingress をホストで終端する例。artifact proxy 自体を全interfaceへ出さない。
+      - "127.0.0.1:${WORD_MCP_ARTIFACT_PORT:-18082}:8080"
+    volumes:
+      - ./integrations/librechat/nginx.conf:/etc/nginx/nginx.conf:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "wget", "-Y", "off", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:8080/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  word-mcp:
+    internal: true
+  word-public:

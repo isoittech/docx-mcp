@@ -1,0 +1,9 @@
+# ~/.codex/config.toml へマージする例。
+# loopback proxy を起動し、WORD_MCP_SHARED_SECRET を安全に環境へ注入してから使う。
+[mcp_servers.word]
+enabled = true
+required = true
+url = "http://127.0.0.1:18081/mcp"
+bearer_token_env_var = "WORD_MCP_SHARED_SECRET"
+startup_timeout_sec = 15.0
+tool_timeout_sec = 65.0

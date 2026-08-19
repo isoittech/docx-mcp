@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>WordMcp.Api</AssemblyName>
+    <RootNamespace>WordMcp</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../scripts/update-word-indexes.py">
+      <Link>scripts/update-word-indexes.py</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

@@ -8,7 +8,7 @@
 
 ## よく使うコマンド
 
-- `docker compose build`: アプリとテスト用イメージをビルドする。
+- `docker compose --profile tools build`: runtime、標準テスト、依存監査の各イメージをビルドする。
 - `docker compose run --rm test`: 単体、契約、Open XML、レンダリング統合テストを一括実行する。
 - `docker compose run --rm audit`: NuGet の既知脆弱性と非推奨依存を確認する。
 - `docker compose up -d word-mcp word-codex-proxy`: ローカル MCP と loopback proxy を起動する。
@@ -23,6 +23,7 @@
 - Package guard は active content、危険 field、禁止 external relationship、未対応 media、ZIP/XML bomb を Open XML 処理や LibreOffice より前に fail closed で拒否する。
 - MCP 本体から外部ネットワークへ接続しない。成果物配信 proxy とローカル MCP proxy の責務を混同しない。
 - 生成・編集後は OpenXmlValidator、新規エラー比較、LibreOffice PDF、Poppler 全ページ PNG の順で gate を通す。
+- 過去の `old_pptx-mcp/.roo/.../docx.py` は proprietary な第三者コードである。参照・コピー・派生をせず、Word 実装は公式仕様と公開ライブラリだけから clean-room で保守する。
 
 ## テスト方針
 
@@ -33,8 +34,15 @@
 
 ## 注意点・落とし穴
 
-- `w:updateFields` はフィールド結果を計算しない。配布 DOCX は dirty/update 要求を保持し、プレビュー copy だけを UNO で index 更新する。
+- MCP C# SDK 2.1 の top-level tool 引数名には `JsonSerializerOptions.PropertyNamingPolicy` が適用されない。公開 snake_case は `AIParameterName` で固定し、custom `JsonSerializerOptions` には `TypeInfoResolver` を明示する。
+- MCP C# SDK 2.1 で `ToolError` DTO を直接返すと成功扱いになる。tool error は明示的な `CallToolResult` とし、`IsError=true`、同一5項目 JSON の text／`StructuredContent` を返す。DataAnnotations の制約は公開 schema 用なので、同じ範囲を server 側でも検証する。
+- 現行ホストでは Docker 既定 seccomp と `no-new-privileges:true` の組み合わせが errno 524 で起動失敗する。seccomp を無効化せず、非 root、read-only、`cap_drop: ALL` で補完し、runtime が対応した環境では `no-new-privileges` を再評価する。
+- restore 前に各 `packages.lock.json` を image へコピーし、必ず `dotnet restore --locked-mode` を使う。lock file を暗黙再生成して依存固定を迂回しない。
+- `w:updateFields` はフィールド結果を計算せず、Word起動時の汎用外部参照警告を誘発し得る。新規生成DOCXはUNOでindexを最大3パス更新し、更新済みcopyからdirty/update要求を除去してOpen XML／package guardを再検証したものだけを配布する。
+- TOC の更新は、更新後の改ページで番号が変わり得るため、更新済みcopyを再オープンして最大3パスで収束を確認する。収束しない、目次番号が PDF の実ページ数を超える、またはLibreOffice保存差分のschema正規化後に検証エラーが残る場合は配布せず fail closed にする。
 - 表示文字列は複数の `w:r`／`w:t` に分割される。`InnerText` の全面再生成で run 書式を壊さない。
 - field、revision、content control、bookmark、tab、改行、story 境界をまたぐ置換を暗黙に行わない。
 - 新規生成でテンプレートを使う場合、許可した style/theme/numbering/section/header/footer だけを継承し、サンプル本文と個人 metadata を持ち込まない。
 - 先頭または末尾に空白を持つ `w:t` には `xml:space="preserve"` を付ける。
+- storage、upload、template root は同一・親子関係を許さない。PNG は寸法 header だけで受理せず、chunk CRC、IDAT 順序、IEND まで構造検査する。
+- `ArtifactRecord.Path` は `job.json` や MCP 応答へ保存・公開しない。通常の repository 読み取りでは `PublishedRunId` 配下（旧形式は job 配下の一意候補）から basename、byte 数、所有 root、非リンクを検証して復元し、retention sweep だけは期限判定用 metadata を path 復元なしで読む。

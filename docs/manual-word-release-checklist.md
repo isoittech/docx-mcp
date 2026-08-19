@@ -72,13 +72,14 @@ repair や content recovery が 1 回でも発生した成果物は `FAIL` で�
 ## 4. Field、TOC、page number
 
 - [ ] 検査用 copy で全 field を更新し、エラー表示や外部取得 prompt が出ない。
+- [ ] 配布DOCXを開いたとき「他のファイルを参照するフィールド」の更新確認ダイアログが表示されない。
 - [ ] TOC に見出しが正しい階層・順序で入り、page number と hyperlink が妥当である。
 - [ ] `PAGE`、`NUMPAGES`、`SECTION` 等の表示が文書全体で一貫する。
 - [ ] field code が本文へ露出せず、未更新の placeholder text が残らない。
 - [ ] TOC 更新後に改ページや最終 page count が変わった場合、全ページを最初から再確認した。
-- [ ] 配布 DOCX では dirty/update 要求が保持され、preview copy の更新結果を配布物へ逆流させていない。
+- [ ] 新規生成の配布DOCXにはdirty/update要求と未更新placeholderがなく、既存文書の限定編集にはpreview copyの保存差分が逆流していない。
 
-Word の field 更新後に保存した検査用 copy を配布成果物へ置き換えません。置換が必要なら、別 artifact として自動 gate を最初から通します。
+新規生成ではfield更新後のcopyをpackage guardとOpenXmlValidatorへ再度通し、最終bytesからanalysis snapshotを作り直します。既存文書の限定編集では検査用copyを配布成果物へ置き換えません。
 
 ## 5. Typography と日本語組版
 

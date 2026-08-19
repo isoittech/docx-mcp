@@ -11,7 +11,8 @@
 | comment | allow/preserve・検出 | target 交差を reject | reject | sanitize |
 | tracked changes | allow/preserve・検出 | target 交差を reject | reject | sanitize |
 | footnote/endnote | allow/preserve・story解析 | 初期版は reject | reject | sanitize |
-| equation、citation | allow/preserve・検出 | target 交差を reject | reject | sanitize |
+| equation | allow/preserve・検出 | target 交差を reject | reject | sanitize |
+| CITATION／BIBLIOGRAPHY field | reject | reject | reject | reject |
 | simple inline/block/cell SDT | allow | 境界交差を reject | allow | sanitize |
 | locked/data-bound/nested/repeating SDT | allow・unsupported表示 | reject | reject | sanitize |
 | text box、chart、SmartArt | allow/preserve・検出 | reject | reject | sanitize |

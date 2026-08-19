@@ -102,10 +102,12 @@ DOTX を populate した出力は main content type と document type を DOCX �
 次は除去します。
 
 - sample 本文、placeholder 値、orphaned part
-- comments、revisions、hidden text、custom XML
+- comments、削除／moveFrom の revision 内容、hidden text、custom XML
 - attached template、thumbnail、digital signature、protection
 - author、last modified by、会社名等を含む core／custom properties
 - 許可されていない external relationship と media
+
+page setup は template の最後の section property から allowlist 項目だけを使います。first／even／default header・footer は template section を後方から探索して有効な参照を解決し、生成した全 section へ再設定します。継承する header／footer 内の insertion／moveTo は revision wrapper を外して表示内容だけを残し、削除／moveFrom、comment marker、hidden text は除去します。参照画像は検査済み embedded PNG／JPEG だけを新しい relationship ID でコピーします。
 
 明示 `DocumentSpec` の design 値は template の正本を破壊しません。既存定義を変更せず、未指定値だけを補完し、必要な style／numbering を ID 衝突なく追加します。`numId`、`abstractNumId`、style ID、bookmark ID/name、relationship ID、`wp:docPr id` 等は一元 allocator で採番します。
 

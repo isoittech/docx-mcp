@@ -59,7 +59,7 @@ LibreChat と word-mcp へ同じ 24 文字以上のランダム値を、各環�
 起動後は次を確認します。
 
 - 無認証 `/mcp` が拒否される。
-- LibreChat の管理者 API key 経由では initialize／discover と `tools/list` が成功する。
+- LibreChat の管理者 API key 経由では MCP 2026-07-28 `server/discover` と `tools/list` が成功する。旧 protocol を有効にする場合だけ legacy `initialize` も確認する。
 - 起動時 probe が OAuth login を要求しない。
 - log、health response、error body に shared secret が出ない。
 
@@ -88,6 +88,7 @@ LibreChat、upload proxy、word-mcp の制限を次の順で同じか、外側�
 - PNG／JPEG: server の画像個別・総 size、寸法、総画素上限に合わせる
 - reverse proxy upload body: multipart overhead を含め、30 MiB より十分大きい値
 - `/mcp` JSON body: 2 MiB。file binary や base64 を MCP JSON へ入れない
+- `/mcp` JSON content: 単一 string 値 200,000、property 名と string 値の合計 400,000 UTF-16 code unit 以内
 
 許可 MIME の例は次です。extension だけで信頼せず、word-mcp が magic bytes、content type、OPC structure を再検証します。
 
@@ -107,9 +108,9 @@ LibreChat、upload proxy、word-mcp の制限を次の順で同じか、外側�
 ## Model に期待する通常運用
 
 - 既存文書を編集する前に `word_analyze` を実行し、`word_get_analysis_chunk` が返す正確な `target_id` だけを使う。解析 ID や target ID を推測しない。
-- 非同期 tool の `job_id` は `word_wait_for_job` で待つ。`word_get_job` を短間隔で反復しない。
+- 非同期 tool の `job_id` は `word_wait_for_job` で待つ。宣言型文書では成功結果の `result.section_keys` を保持し、titleからkeyを推測しない。`word_get_job` を短間隔で反復しない。
 - `word_get_job(job_id=latest)` の「状態を問わない直近 job」と、insert／refine の「最新成功済み宣言型文書」を混同しない。
-- 新規文書は start → 1 回 3 セクション以内の add → finish の順に作り、空引数で先行呼び出ししない。start 後に template／design を変更しない。
+- 新規文書は start → 1 回 3 セクション以内の add → finish の順に作り、空引数で先行呼び出ししない。section title は自動Heading 1なので、body先頭へ同一headingを重ねない。start 後に template／design を変更しない。
 - 編集成功後は新しい `output_analysis_id` と target snapshot を使い、古い snapshot を再利用しない。
 - 成功 job の `page_count` を確認し、`word_get_preview_images` へ重複しない 1 始まり page number を 1〜4 件ずつ渡して全ページを見る。
 - 視覚問題は `word_refine_document_section` へ 1 セクションずつ渡す。修正後は reflow の影響を受ける全ページを再確認し、自律修正は最大 2 巡で止める。
@@ -172,6 +173,6 @@ fragment の相対 path は word-mcp repository root を基準にした例です
 - [ ] DOCX／DOTX／PNG／JPEG の size、extension、MIME と proxy body limit が整合する。
 - [ ] `/mcp` は internal、artifact proxy は GET／HEAD と readiness だけである。
 - [ ] 無認証、未展開 placeholder、別 user、別 conversation を拒否する。
-- [ ] initialize／discover、`tools/list`、代表 workflow、artifact download の protocol E2E が成功する。
+- [ ] MCP 2026-07-28 `server/discover`、`tools/list`、代表 workflow、artifact download の protocol E2E が成功する。旧 protocol を有効にする場合は legacy `initialize` も成功する。
 - [ ] 全 16 tool と server instructions が LibreChat から見える。
 - [ ] 実 provider の次 model turn が preview image の内容を認識する。未実施なら理由付き `NOT_RUN` である。

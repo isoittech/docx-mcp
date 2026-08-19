@@ -9,15 +9,15 @@
 
 ## 入力と parser
 
-`file_id` は ASCII の不透明 ID だけを許す。upload root 下の通常 file を descriptor 情報と実 path の双方で確認し、symlink、hardlink、境界外 path、複数一致を拒否する。検査前に job directory へ一度コピーし、その SHA-256 を固定する。
+`file_id` は ASCII の不透明 ID だけを許す。storage、upload、template root は絶対 non-root path とし、同一または相互の配下となる設定を起動時に拒否する。upload root 下の通常 file を descriptor 情報と実 path の双方で確認し、symlink、hardlink、境界外 path、複数一致を拒否する。検査前に job directory へ一度コピーし、その SHA-256 を固定する。
 
-初期 hard ceiling は 30 MiB、ZIP 5,000 entry、展開後 300 MiB、圧縮率 250、1,000 block、200,000文字、10,000 table cell、40画像、50明示 page break、50 render page である。単一 XML part、relationship、XML depth、属性数、画像寸法・画素にも上限を設ける。request body は 2 MiB、JSON depth は 32 を上限とする。
+初期 hard ceiling は 30 MiB、ZIP 5,000 entry、展開後 300 MiB、圧縮率 250、1,000 block、200,000文字、10,000 table cell、40画像、50明示 page break、50 render page である。単一 XML part、relationship、XML depth、属性数、画像寸法・画素にも上限を設ける。PNG は signature、IHDR parameter、chunk length/type/CRC、IDAT の連続性と zlib header、終端 IEND を境界内で検査し、truncation や checksum 不一致を拒否する。request body は 2 MiB、JSON depth は 32、単一 JSON string 値は 200,000 UTF-16 code unit、property 名と string 値の合計は 400,000 UTF-16 code unit を上限とする。
 
 ZIP traversal、absolute entry、正規化重複、DTD/XXE、暗号化、macro、ActiveX、OLE、embedded package、altChunk、禁止 field、禁止 external relationship、未対応 media は Open XML SDK と LibreOffice の前に拒否する。許可する external relationship は正規な passive HTTP(S)/mailto hyperlink だけで、サーバーは取得しない。
 
 ## child process
 
-LibreOffice と Poppler は検査済みの明示 path／page range だけを `ProcessStartInfo.ArgumentList` へ渡し、shell を使わない。job ごとの一時 LibreOffice profile、timeout、cancel 時の process tree kill、PDF page/size と PNG count/size 上限を適用する。
+LibreOffice と Poppler は検査済みの明示 path／page range だけを `ProcessStartInfo.ArgumentList` へ渡し、shell を使わない。child process は親 process の環境を継承せず、`Environment.Clear()` 後に固定 `PATH`、`LANG`、`LC_ALL` と job 専用の `HOME`／`TMPDIR`、内部呼び出しが明示した変数だけを設定する。job ごとの一時 LibreOffice profile、timeout、cancel 時の process tree kill、PDF page/size と PNG count/size 上限を適用する。
 
 ## artifact とログ
 

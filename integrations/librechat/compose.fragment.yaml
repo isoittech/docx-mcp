@@ -47,7 +47,7 @@ services:
       start_period: 30s
 
   word-artifact-proxy:
-    image: nginx:1.31.3-alpine3.24
+    image: nginx:1.31.3-alpine3.24@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
     depends_on:
       word-mcp:
         condition: service_healthy

@@ -9,8 +9,8 @@ LibreChat／Codex から Word 文書を安全に解析、限定編集、テン�
 - Word 文書は固定ページではなく、再フローする story、論理セクション、block の列として扱います。ページ番号はプレビュー画像の取得にだけ使い、編集対象の永続 ID にはしません。
 - 編集対象は解析 snapshot 固有の不透明な `target_id` で指定します。ID は source SHA-256、利用者、会話へ束縛され、編集後の古い `analysis_id`／`target_id` は stale として拒否されます。
 - 新規生成は制約済みの `DocumentSpec` だけを受け付けます。任意 OOXML、XML、HTML、Markdown、CSS、コード、シェル、座標、URL、base64、ローカル path は公開入力にできません。
-- Open XML SDK はページネーションやフィールド結果を計算しません。配布 DOCX は dirty/update 要求付き field を保持し、プレビュー専用 copy だけを LibreOffice UNO で更新します。
-- LibreOffice は編集エンジンではなく、DOCX→PDF の表示確認にだけ使います。Microsoft Word と LibreOffice Writer の改ページ一致は保証しません。
+- Open XML SDK はページネーションやフィールド結果を計算しません。新規生成DOCXはLibreOffice UNOでindexを収束更新し、dirty／起動時update要求を除去して再検証した更新済みcopyを配布します。既存文書の限定編集では、LibreOffice保存をDOCXへ逆流させません。
+- LibreOffice は既存文書の編集エンジンには使いません。宣言型の新規生成だけは、TOC／PAGE結果を確定する最終化とDOCX→PDFの表示確認に使います。Microsoft Word と LibreOffice Writer の改ページ一致は保証しません。
 
 詳細は [アーキテクチャ](docs/architecture.md)、[セキュリティ設計](docs/security.md)、[tool 契約表](docs/tool-contract-matrix.md) を参照してください。
 
@@ -49,11 +49,11 @@ LibreChat／Codex から Word 文書を安全に解析、限定編集、テン�
 
 1. `.env.example` を `.env` へコピーします。`.env` は Git へ追加しません。
 2. 共有秘密と 2 種類の署名鍵を、それぞれ独立した暗号学的乱数へ置き換えます。3 値の使い回しは起動時に拒否されます。
-3. storage、LibreChat upload、template の各 path をホスト上の絶対 path で設定します。
+3. storage、LibreChat upload、template の各 path をホスト上の絶対 path で設定し、事前にディレクトリを作成します。3 root は同一にも相互の配下にもできません。storage は UID/GID `1654:1654` または同等の ACL で書き込み可能にし、upload/template は UID 1654 から読み取り可能にします。Compose の bind mount にディレクトリを暗黙作成させないでください。
 4. image を build し、用途に応じた入口を起動します。
 
 ```bash
-docker compose build
+docker compose build word-mcp
 docker compose up -d word-mcp
 ```
 
@@ -91,6 +91,7 @@ MCP 本体をホストやインターネットへ直接 publish しないでく�
 |---|---:|
 | MCP request body | 2 MiB |
 | JSON depth | 32 |
+| JSON の単一 string 値／property 名と string 値の合計 | 200,000／400,000 UTF-16 code unit |
 | DOCX／DOTX 入力 | 30 MiB |
 | ZIP entry | 5,000 |
 | 展開後合計 | 300 MiB |
@@ -110,8 +111,14 @@ MCP 本体をホストやインターネットへ直接 publish しないでく�
 | draft | 1 時間 |
 | 1 回の draft 追加 | 3 セクション、60 block、30,000 文字 |
 | 1 conversation の永続 item／合計 | 128／512 MiB |
+| 1 user の永続 item／合計 | 512／2 GiB |
+| server 全体の永続 item／合計 | 4,096／10 GiB |
 
 上限超過時は payload 全体を log せず、`status=invalid_input` または `resource_exhausted` の構造化エラーを返します。
+
+tool 実行中のエラーは明示的な MCP `CallToolResult` として返します。wire 上の `isError` は `true`、`content` の text block は `status`、`code`、`field_path`、`message`、`correction` の5項目を持つ JSON であり、`structuredContent` に同じ5項目を返します。request body／JSON parser 等が tool 呼び出し前に拒否した場合は、同じ5項目を持つ HTTP 4xx 応答です。
+
+draft、analysis snapshot、解析 cache は quota 超過時の再利用可能データであり、期限切れ／stale を先に、次に最終アクセスが古い順で会話、利用者、全体の該当境界から削除します。job／artifact と queued／running job が参照中の draft／analysis はこの LRU 削除対象にしません。cache は user+conversation scope と source SHA-256 に束縛し、hit 時も新しい `analysis_id`／`target_id` を発行します。詳細は [アーキテクチャ](docs/architecture.md#保持と-backpressure) を参照してください。
 
 ## 公開 MCP tool
 
@@ -174,11 +181,11 @@ unsafe 文書は `rejected_unsafe_document` で終端し、本文や target を�
 
 ### 新規文書を作る
 
-1. 期待論理セクション数、metadata、layout、theme／design、template 選択を決め、`word_start_document` を 1 回呼びます。
-2. 返された `draft_id` へ、`word_add_sections_to_draft` で順番どおり最大 3 セクションずつ追加します。受理済みセクションを再送しません。
-3. `remaining_section_count=0` のときだけ `word_finish_document` を 1 回呼びます。start 後に template や全体 design を変更しません。
-4. job を待ち、全 preview page を確認します。
-5. 問題があれば `word_refine_document_section` へ 1 セクションだけの完全な差し替え仕様を渡し、成功後に全ページを再確認します。自律的な見た目修正は最大 2 巡です。
+1. 期待論理セクション数、metadata、layout、theme／design、template 選択を決め、`word_start_document` を 1 回呼びます。同じ信頼済みmessage IDから通信再送されたstartは同じdraftへ収束し、提出済みなら `submitted_job_id` と `next_tool` を返します。
+2. 返された `draft_id` へ、`word_add_sections_to_draft` で順番どおり最大 3 セクションずつ追加します。logical section の `title` は Heading 1 として自動描画されるため、body の先頭 heading block へ同じ文言を重ねません。受理済みセクションを再送しません。
+3. `remaining_section_count=0` のときだけ `word_finish_document` を 1 回呼びます。通信再送で同じdraftへ重複した場合は既存の同じ `job_id` が返るため、そのjobを待ち、新しいdraftを開始しません。start 後に template や全体 design を変更しません。
+4. job を待ち、成功結果の `result.section_keys` を保持してから全 preview page を確認します。
+5. 問題があれば、保持した正確な section key を使って `word_refine_document_section` へ 1 セクションだけの完全な差し替え仕様を渡し、成功後に全ページを再確認します。title から key を推測しません。自律的な見た目修正は最大 2 巡です。
 6. セクション追加は `word_insert_document_sections` へ追加分だけを渡します。成功済み文書を start／finish から作り直しません。
 
 非同期 tool が `job_id` を返したら `word_get_job` を短間隔で反復せず、まず `word_wait_for_job` を使います。preview を取得していない場合は「視覚確認済み」と扱いません。
@@ -204,7 +211,7 @@ LibreChat UI に preview が見えるだけでは provider E2E の合格にな�
 
 - Bearer shared secret を固定時間比較し、user／conversation／message は信頼済み HTTP header からだけ取得します。これらを tool 引数にしません。
 - upload は不透明な `file_id` から解決し、path、glob、任意 URL、symlink、hardlink、root 外参照を拒否します。検証前に 1 回 snapshot copy し、SHA-256 で固定します。
-- ZIP／OPC／XML／field／relationship／media を Open XML SDK と LibreOffice より前に fail closed で検査します。
+- ZIP／OPC／XML／field／relationship／media を Open XML SDK と LibreOffice より前に fail closed で検査します。PNG は signature／IHDR だけでなく chunk 境界、CRC、IDAT 順序、IEND まで確認します。
 - MCP container は non-root、read-only、`cap_drop: ALL`、no-egress の internal network で動かします。
 - ログへ本文、file 内容、元 filename、secret、署名 URL、生の個人 ID、メールアドレスを出しません。
 - 成果物 URL は HMAC-SHA256 署名付きで 15 分有効です。artifact 本体の保持期限は `min(生成から7日, 最初のDOCXダウンロードから24時間)` です。preview 閲覧と HEAD は 24 時間 timer を開始しません。
@@ -212,13 +219,13 @@ LibreChat UI に preview が見えるだけでは provider E2E の合格にな�
 ## Word／LibreOffice の既知差
 
 - フォントの有無、font fallback、禁則処理、hyphenation、表の自動調整、field 実装により改ページが変わります。
-- `w:updateFields` は field 結果を生成しません。Word で開いたときに TOC／PAGE／NUMPAGES の更新確認が必要です。
+- 新規生成DOCXはTOC／PAGE／NUMPAGESを最終化し、`w:updateFields`とdirty fieldを除去してから配布します。Microsoft Wordで起動時のフィールド更新確認が出ないことをrelease gateで確認します。
 - LibreOffice preview は自動 gate ですが、Microsoft Word 互換性の代替ではありません。release 前に [Microsoft Word 手動確認](docs/manual-word-release-checklist.md) を実施してください。
 
 ## テストと監査
 
 ```bash
-docker compose build
+docker compose --profile tools build
 docker compose run --rm test
 docker compose run --rm audit
 git diff --check

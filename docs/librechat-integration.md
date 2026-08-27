@@ -32,20 +32,21 @@ fragment には次を必須で残します。
 
 ### Caller header placeholder の version gate
 
-`X-LibreChat-User-ID`、`X-LibreChat-Conversation-ID`、`X-LibreChat-Message-ID` は認可境界です。tool 引数で代替できません。fragment にはローカルの既存導入例で使われる次の候補を記載しています。
+`X-LibreChat-User-ID`、`X-LibreChat-Conversation-ID`、`X-LibreChat-Message-ID`、`X-LibreChat-Attachment-File-IDs` は認可境界です。tool 引数で代替できません。fragment にはローカルの既存導入例で使われる次の候補を記載しています。
 
 ```yaml
 headers:
   X-LibreChat-User-ID: "{{LIBRECHAT_USER_ID}}"
   X-LibreChat-Conversation-ID: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
   X-LibreChat-Message-ID: "{{LIBRECHAT_BODY_MESSAGEID}}"
+  X-LibreChat-Attachment-File-IDs: "{{LIBRECHAT_BODY_ATTACHMENTFILEIDS}}"
 ```
 
 ただし、conversation／message の正確な placeholder 名と展開可能な request context は LibreChat の利用 version に依存します。上記を「全 version で正しい値」とみなして本番投入してはいけません。導入時に次を実施します。
 
 1. 利用する LibreChat の正確な image tag／commit と `@librechat/agents` version を記録する。
 2. その version の公式設定 schema と MCP header 展開処理の source を確認する。
-3. user、conversation、message の各 placeholder が実リクエストで空でなく、`{{...}}` の未展開文字列でもないことを、秘密値を log しない test endpoint／MCP E2E で確認する。
+3. user、conversation、message、attachment file IDsの各placeholderが実リクエストで正しく展開されることを、秘密値をlogしないtest endpoint／MCP E2Eで確認する。添付なしは`-`、添付ありは最大32件のopaque ID列とする。
 4. 別 user／別 conversation の job、analysis、artifact が `not_found` になることを確認する。
 
 サーバーは空値、control character、未展開 placeholder を fail closed で拒否します。確認できない場合は integration を有効化せず、provider E2E と同様に理由付き `NOT_RUN`／release blocker として記録します。
@@ -78,7 +79,7 @@ local storage adapter の想定命名例は次です。
 
 これは storage backend の普遍仕様ではありません。導入 LibreChat の実命名規則を synthetic fixture で固定してください。version や S3 等の backend が変わる場合は `InputFileResolver` を交換し、MCP server が任意 URL を download する方式へ変えません。
 
-Bedrock 等で file ID が model turn に提示されない場合、`source_file_id` を省略できる tool は同じ user scope の最新 DOCX／DOTXだけを解決します。明示 ID を常に優先します。この upload `latest` は user scope であり、job／draft／analysis／target／artifact の user+conversation scope や、管理者 template scope とは異なります。
+Bedrock等でfile IDがmodel turnに提示されない場合、`source_file_id=latest`は信頼済みheaderに列挙された現在メッセージ添付のうち、対応DOCX／DOTXがちょうど1件の場合だけ解決します。添付なしの`-`では過去uploadへfallbackせず、複数件なら`ambiguous_file_id`です。明示IDも同じ添付集合に含まれる必要があります。header自体を省略できるのは信頼済みlocal clientの後方互換だけで、その場合に限り同じuser scopeの最新uploadを解決します。job／draft／analysis／target／artifactのuser+conversation scopeや、管理者template scopeとは別の境界です。
 
 ### Size／MIME の整合
 

@@ -103,7 +103,7 @@ public sealed class WordTools
     }
 
     [McpServerTool(Name = "word_analyze", ReadOnly = true, Idempotent = true),
-     Description("LibreChat upload または同じ会話の document artifact を安全な immutable snapshot に固定し、非同期解析します。source_file_id は不透明 ID、同じ利用者の最新 DOCX/DOTX を選ぶ latest、または省略です。unsafe 文書は rejected_unsafe_document で本文や target を返しません。受領後は word_wait_for_job を使います。")]
+     Description("LibreChat upload または同じ会話の document artifact を安全な immutable snapshot に固定し、非同期解析します。LibreChatのlatestは信頼済みの現在メッセージ添付境界にある単一DOCX/DOTXだけを選び、複数なら拒否します。headerを省略するlocal clientでは同じ利用者の最新uploadです。unsafe文書はrejected_unsafe_documentで本文やtargetを返しません。受領後はword_wait_for_jobを使います。")]
     public static Task<CallToolResult> AnalyzeAsync(
         CallerContextAccessor callerContext,
         JobService jobs,
@@ -352,7 +352,7 @@ public sealed class WordTools
 
             content.Add(new TextContentBlock
             {
-                Text = "Inspect every returned page for clipping, overlap, font substitution, mojibake, Japanese line breaking, hierarchy, reading order, spacing, margins, contrast, isolated headings, widows/orphans, blank pages, table overflow, repeated table headers, image aspect ratio/caption/alt text, section and header/footer inheritance, TOC and PAGE/NUMPAGES fields, and first/final-page balance. Retrieve every page before claiming visual review. After any section edit, review every page again.",
+                Text = "Inspect every returned page for clipping, overlap, font substitution, mojibake, Japanese line breaking, hierarchy, reading order, spacing, margins, contrast, isolated headings, widows/orphans, blank pages, table overflow, repeated table headers, image aspect ratio/caption/alt text, section and header/footer inheritance, TOC and PAGE/NUMPAGES fields, and first/final-page balance. Retrieve every page before claiming visual review. After any section edit, review every page again. If the job has preview_table_text_missing or preview_table_text_coverage_unavailable warnings, disclose them and do not claim that table clipping or overflow is absent.",
             });
             return new CallToolResult
             {

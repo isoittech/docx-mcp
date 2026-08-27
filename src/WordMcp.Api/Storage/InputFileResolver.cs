@@ -131,6 +131,17 @@ public sealed class InputFileResolver(
         }
 
         var userDirectory = Path.Combine(settings.LibreChatUploadsRoot, caller.UserId);
+        if (requestedId != "latest"
+            && caller.AttachmentFileIds is not null
+            && !caller.AttachmentFileIds.Contains(requestedId))
+        {
+            throw Invalid(
+                "input_file_not_found",
+                fieldPath,
+                "The upload is not available in the current message attachment boundary.",
+                "Attach the file to the current message and use its opaque file ID.");
+        }
+
         string[] fileNames;
         try
         {
@@ -162,6 +173,7 @@ public sealed class InputFileResolver(
             var candidateId = fileName[..separator];
             if (!IsSafeOpaqueId(candidateId)
                 || (requestedId != "latest" && !string.Equals(candidateId, requestedId, StringComparison.Ordinal))
+                || (caller.AttachmentFileIds is not null && !caller.AttachmentFileIds.Contains(candidateId))
                 || !TryFormat(fileName, out var format)
                 || (documentOnly && format is not (ResolvedInputFormat.Docx or ResolvedInputFormat.Dotx)))
             {
@@ -195,6 +207,17 @@ public sealed class InputFileResolver(
                 fieldPath,
                 "No matching upload is available in this user boundary.",
                 "Upload a supported file and use its opaque file ID.");
+        }
+
+        if (requestedId == "latest"
+            && caller.AttachmentFileIds is not null
+            && candidates.Count != 1)
+        {
+            throw Invalid(
+                "ambiguous_file_id",
+                fieldPath,
+                "More than one supported document is attached to the current message.",
+                "Attach only the intended document, or pass its opaque file ID explicitly.");
         }
 
         if (requestedId != "latest" && candidates.Count != 1)

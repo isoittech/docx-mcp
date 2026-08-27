@@ -5,7 +5,7 @@
 | tool | mode | hint | 主入力 | 発行／消費 ID | scope / TTL | 上限・終端 | 成功後 |
 |---|---|---|---|---|---|---|---|
 | `word_get_capabilities` | sync | RO, idempotent | なし | なし | caller | compact response | workflow を選ぶ |
-| `word_analyze` | async | RO, idempotent | `source_file_id`=`latest`可 | file/artifact -> job, analysis | upload=user、artifact=user+conversation、analysis=1h | unsafe は `rejected_unsafe_document` | wait |
+| `word_analyze` | async | RO, idempotent | `source_file_id`=`latest`可 | file/artifact -> job, analysis | LibreChat upload=user＋current attachments、artifact=user+conversation、analysis=1h | 添付0件=not found、複数latest=ambiguous、unsafe=`rejected_unsafe_document` | wait |
 | `word_get_analysis_chunk` | sync | RO, idempotent | analysis, kind, cursor | analysis/target | user+conversation / 1h | 1〜50件 | target を正確に使う |
 | `word_render_preview` | async | RO, idempotent | source file/artifact | job | 同上 | 50 pages | wait、全 preview |
 | `word_replace_text` | async | destructive | analysis, target, expected text/count, replacement | analysis/target -> job/output analysis | user+conversation / 1h | 1〜100置換 | wait、新 snapshot |
@@ -17,7 +17,7 @@
 | `word_insert_document_sections` | async | destructive | `job_id=latest`, 1〜3 sections, position | successful declarative job -> job | user+conversation | latest=最新成功宣言型文書 | wait、全 preview |
 | `word_refine_document_section` | async | destructive | `job_id=latest`, 1 section replacement | successful declarative job -> job | user+conversation | 自動修正は section 単位・最大2巡 | wait、全 preview |
 | `word_get_job` | sync | RO, idempotent | `job_id`=`latest`可 | job | user+conversation / artifact期限まで | latest=状態不問の直近 job | 状態に従う |
-| `word_wait_for_job` | sync wait | RO, idempotent | job, 1〜50秒 | job（宣言型成功時は `result.section_keys`） | user+conversation | terminal または timeout snapshot | key保持、成功なら全 preview |
+| `word_wait_for_job` | sync wait | RO, idempotent | job, 1〜50秒 | job（宣言型成功時は `result.section_keys`） | user+conversation | terminal または timeout snapshot。表セル文字がPDFで欠落／検証不能なら`warnings` | key保持、warning明示、成功なら全 preview |
 | `word_get_preview_images` | sync | RO, idempotent | successful job, page numbers | job | user+conversation | 重複なし1〜4、1始まり | 全 page を確認 |
 | `word_cancel_job` | sync | destructive | job | job | user+conversation | queued/running のみ | get job |
 

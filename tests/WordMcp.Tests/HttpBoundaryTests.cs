@@ -75,6 +75,53 @@ public sealed class HttpBoundaryTests
     }
 
     [Fact]
+    public void CallerContextReadsAndDeduplicatesCurrentAttachmentFileIds()
+    {
+        var context = Context("/mcp");
+        context.Request.Headers["X-LibreChat-User-ID"] = "user";
+        context.Request.Headers["X-LibreChat-Conversation-ID"] = "conversation";
+        context.Request.Headers["X-LibreChat-Attachment-File-IDs"] = "file-1,file_2,file-1";
+
+        var caller = new CallerContextAccessor(new HttpContextAccessor { HttpContext = context }).GetRequired();
+
+        Assert.NotNull(caller.AttachmentFileIds);
+        Assert.Equal(2, caller.AttachmentFileIds.Count);
+        Assert.Contains("file-1", caller.AttachmentFileIds);
+        Assert.Contains("file_2", caller.AttachmentFileIds);
+    }
+
+    [Fact]
+    public void CallerContextTreatsDashAsAnEmptyCurrentAttachmentScope()
+    {
+        var context = Context("/mcp");
+        context.Request.Headers["X-LibreChat-User-ID"] = "user";
+        context.Request.Headers["X-LibreChat-Conversation-ID"] = "conversation";
+        context.Request.Headers["X-LibreChat-Attachment-File-IDs"] = "-";
+
+        var caller = new CallerContextAccessor(new HttpContextAccessor { HttpContext = context }).GetRequired();
+
+        Assert.NotNull(caller.AttachmentFileIds);
+        Assert.Empty(caller.AttachmentFileIds);
+    }
+
+    [Theory]
+    [InlineData("../file")]
+    [InlineData("file one")]
+    [InlineData(",")]
+    public void CallerContextRejectsInvalidCurrentAttachmentFileIds(string value)
+    {
+        var context = Context("/mcp");
+        context.Request.Headers["X-LibreChat-User-ID"] = "user";
+        context.Request.Headers["X-LibreChat-Conversation-ID"] = "conversation";
+        context.Request.Headers["X-LibreChat-Attachment-File-IDs"] = value;
+
+        var error = Assert.Throws<WordMcpException>(
+            new CallerContextAccessor(new HttpContextAccessor { HttpContext = context }).GetRequired);
+
+        Assert.Equal("trusted_header_invalid", error.Code);
+    }
+
+    [Fact]
     public async Task OriginValidationRejectsUnknownBrowserOriginButAllowsAbsentOrigin()
     {
         var options = Options.Create(new WordMcpOptions

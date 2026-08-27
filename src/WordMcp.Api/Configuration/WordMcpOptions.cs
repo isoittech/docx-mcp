@@ -36,6 +36,8 @@ public sealed partial class WordMcpOptions
 
     public string PdfInfoPath { get; init; } = "/usr/bin/pdfinfo";
 
+    public string PdfToTextPath { get; init; } = "/usr/bin/pdftotext";
+
     public string PdfToPngPath { get; init; } = "/usr/bin/pdftoppm";
 
     public long MaxRequestBodyBytes { get; init; } = 2L * 1024 * 1024;
@@ -176,7 +178,10 @@ public sealed partial class WordMcpOptions
             throw new InvalidOperationException("Storage, upload, and template roots must be distinct and non-overlapping.");
         }
 
-        foreach (var path in new[] { LibreOfficePath, PythonPath, UnoScriptPath, PdfInfoPath, PdfToPngPath })
+        foreach (var path in new[]
+                 {
+                     LibreOfficePath, PythonPath, UnoScriptPath, PdfInfoPath, PdfToTextPath, PdfToPngPath,
+                 })
         {
             if (!Path.IsPathFullyQualified(path))
             {

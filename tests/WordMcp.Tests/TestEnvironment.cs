@@ -26,6 +26,7 @@ internal sealed class TestEnvironment : IDisposable
             PythonPath = "/usr/bin/python3",
             UnoScriptPath = "/app/scripts/update-word-indexes.py",
             PdfInfoPath = "/usr/bin/pdfinfo",
+            PdfToTextPath = "/usr/bin/pdftotext",
             PdfToPngPath = "/usr/bin/pdftoppm",
         });
         Time = new MutableTimeProvider(

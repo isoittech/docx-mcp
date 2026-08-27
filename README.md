@@ -24,6 +24,7 @@ LibreChat／Codex から Word 文書を安全に解析、限定編集、テン�
 - 段階 draft と宣言型 `DocumentSpec` による、編集可能な Word ネイティブ文書の生成
 - 論理セクションの挿入と、1 セクションずつ最大 2 巡の自動視覚修正
 - LibreOffice→PDF→Poppler PNG の全ページプレビュー
+- DOCXの非空表セル文字とPDF抽出文字の照合、および表内容欠落時の機械判定warning
 - 15 分有効の署名付き成果物 URL と、利用者・会話ごとの所有権検証
 
 ## 明示的な非対応範囲
@@ -151,7 +152,7 @@ ID を推測したり、別文書・別会話へ流用したりしないでく�
 
 | 対象 | scope と意味 |
 |---|---|
-| LibreChat upload source | 同じ user scope 内の最新の安全な DOCX／DOTX。明示 `file_id` を常に優先 |
+| LibreChat upload source | 信頼済みの現在メッセージ添付境界にある単一の安全なDOCX／DOTX。添付なしはnot found、複数はambiguous。header省略local clientだけ同じuser scopeの最新upload |
 | `word_get_job(job_id=latest)` | 同じ user+conversation scope の、状態を問わない直近 job |
 | insert／refine の `job_id=latest` | 同じ user+conversation scope の最新成功済み宣言型文書 |
 | draft／analysis／target／artifact | user+conversation scope。schema が `latest` を明示しない箇所へ文字列を送らない |
@@ -194,7 +195,7 @@ unsafe 文書は `rejected_unsafe_document` で終端し、本文や target を�
 
 管理者が用意した macro-free `<template-id>.docx`／`<template-id>.dotx` を、リポジトリ外の private directory から read-only mount します。template ID は ASCII 英数字、hyphen、underscoreだけを使い、実 template、会社名、ロゴ、顧客資料、固有文言を OSS repository や image に含めません。
 
-`WORD_MCP_DEFAULT_TEMPLATE_ID` が設定されている場合は、起動時に存在、安全性、Open XML 整合性、構造を検査し、失敗時は readiness を fail closed にします。新規文書の template source は `default`、`none`、同じ user scope の upload `latest`、または明示 `file_id` から start 時に選び、その workflow 中は固定します。
+`WORD_MCP_DEFAULT_TEMPLATE_ID` が設定されている場合は、起動時に存在、安全性、Open XML 整合性、構造を検査し、失敗時は readiness を fail closed にします。新規文書の template source は `default`、`none`、現在メッセージ添付境界の単一 upload `latest`、または同じ境界の明示 `file_id` から start 時に選び、その workflow 中は固定します。header省略local clientだけはuser scopeのuploadを使います。
 
 詳細と作成チェックリストは [テンプレートガイド](docs/template-guide.md) を参照してください。
 

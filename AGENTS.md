@@ -22,7 +22,8 @@
 - 任意 OOXML、HTML、Markdown、コード、シェル、座標、URL、base64、ローカル path を公開入力へ追加しない。生成は制約済み `DocumentSpec` だけを受ける。
 - Package guard は active content、危険 field、禁止 external relationship、未対応 media、ZIP/XML bomb を Open XML 処理や LibreOffice より前に fail closed で拒否する。
 - MCP 本体から外部ネットワークへ接続しない。成果物配信 proxy とローカル MCP proxy の責務を混同しない。
-- 生成・編集後は OpenXmlValidator、新規エラー比較、LibreOffice PDF、Poppler 全ページ PNG の順で gate を通す。
+- LibreChat uploadは信頼済み`X-LibreChat-Attachment-File-IDs`がある場合、現在メッセージのopaque file IDだけを解決する。`-`は空scope、header省略はlocal client互換とする。境界内に複数のDOCX／DOTXがある`latest`は更新時刻で選ばず曖昧として拒否する。
+- 生成・編集後は OpenXmlValidator、新規エラー比較、LibreOffice PDF、Poppler 全ページ PNG の順で gate を通す。DOCXの非空表セル文字とPDF抽出文字を照合し、欠落または検証不能なら`warnings`へ出して表の視覚確認合格と断言させない。
 - 過去の `old_pptx-mcp/.roo/.../docx.py` は proprietary な第三者コードである。参照・コピー・派生をせず、Word 実装は公式仕様と公開ライブラリだけから clean-room で保守する。
 
 ## テスト方針
@@ -40,6 +41,7 @@
 - restore 前に各 `packages.lock.json` を image へコピーし、必ず `dotnet restore --locked-mode` を使う。lock file を暗黙再生成して依存固定を迂回しない。
 - `w:updateFields` はフィールド結果を計算せず、Word起動時の汎用外部参照警告を誘発し得る。新規生成DOCXはUNOでindexを最大3パス更新し、更新済みcopyからdirty/update要求を除去してOpen XML／package guardを再検証したものだけを配布する。
 - TOC の更新は、更新後の改ページで番号が変わり得るため、更新済みcopyを再オープンして最大3パスで収束を確認する。収束しない、目次番号が PDF の実ページ数を超える、またはLibreOffice保存差分のschema正規化後に検証エラーが残る場合は配布せず fail closed にする。
+- 視覚回帰はruntimeと同じ固定版LibreOffice（現在24.2.7）で行う。ホストのLibreOffice 7.3.7では、24.2.7で全列表示できる表の第2列以降が欠落した実例があるため、旧版ホストの再描画だけでstg成果物を不合格にしない。Microsoft Word互換性は別途手動確認として扱う。
 - 表示文字列は複数の `w:r`／`w:t` に分割される。`InnerText` の全面再生成で run 書式を壊さない。
 - field、revision、content control、bookmark、tab、改行、story 境界をまたぐ置換を暗黙に行わない。
 - 新規生成でテンプレートを使う場合、許可した style/theme/numbering/section/header/footer だけを継承し、サンプル本文と個人 metadata を持ち込まない。

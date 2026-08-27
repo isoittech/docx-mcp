@@ -27,7 +27,7 @@ GET|HEAD /artifacts/{job}/{artifact}/{file}
 
 ## ID と scope
 
-生の user／conversation ID は保存しない。独立した scope key と domain separation を使う HMAC-SHA256 で user scope と conversation scope を作る。job、draft、analysis、target、artifact は user+conversation scope、LibreChat upload の `latest` は user scope、deployment template は administrator scope で解決する。
+生の user／conversation ID は保存しない。独立した scope key と domain separation を使う HMAC-SHA256 で user scope と conversation scope を作る。job、draft、analysis、target、artifact は user+conversation scope、deployment template は administrator scope で解決する。LibreChat uploadはuser directoryに加えて信頼済みの現在メッセージ添付ID集合で絞り、`latest`はその集合内に対応DOCX／DOTXがちょうど1件ある場合だけ解決する。添付なしや複数件を過去の更新時刻で補わない。headerを送らないlocal clientだけは後方互換としてuser scopeの最新uploadを使う。
 
 `target_id` 自体は推測困難な乱数であり、analysis repository 内で source SHA-256、part URI、story、対象種別、locator と対応する。編集時には analysis、target、入力 snapshot SHA、scope をすべて再検証する。編集成功後は新しい source SHA に対する analysis を発行し、旧 snapshot を stale とする。
 

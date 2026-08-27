@@ -10,6 +10,7 @@ public sealed class WordServerInstructionsTests
     [InlineData("word_finish_document")]
     [InlineData("word_wait_for_job")]
     [InlineData("word_get_preview_images")]
+    [InlineData("preview_table_text_missing")]
     [InlineData("word_refine_document_section")]
     [InlineData("word_insert_document_sections")]
     public void BuildContainsRequiredWorkflowTool(string tool)
@@ -37,6 +38,9 @@ public sealed class WordServerInstructionsTests
         Assert.Contains("reflow", instructions, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("result.section_keys", instructions, StringComparison.Ordinal);
         Assert.Contains("rendered automatically as Heading 1", instructions, StringComparison.Ordinal);
+        Assert.Contains("trusted current-message attachment header", instructions, StringComparison.Ordinal);
+        Assert.Contains("Provider-extracted attachment text", instructions, StringComparison.Ordinal);
+        Assert.Contains("more than one supported document", instructions, StringComparison.Ordinal);
     }
 
     [Fact]

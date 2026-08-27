@@ -2,12 +2,15 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DocumentFormat.OpenXml.Packaging;
 using Microsoft.Extensions.Options;
 using WordMcp.Configuration;
 using WordMcp.Domain;
 using WordMcp.Word;
+using W = DocumentFormat.OpenXml.Wordprocessing;
 
 namespace WordMcp.Rendering;
 
@@ -23,7 +26,8 @@ public sealed record RenderResult(
     int TocPageNumberCount,
     int TocMaxPageNumber,
     int ExpectedHeadingCount,
-    int MatchedHeadingCount);
+    int MatchedHeadingCount,
+    IReadOnlyList<string> Warnings);
 
 public sealed partial class DocumentRenderer(
     ProcessRunner processes,
@@ -176,6 +180,12 @@ public sealed partial class DocumentRenderer(
                 "Do not distribute this preview; simplify the layout or retry after the TOC pagination converges.");
         }
 
+        var warnings = await InspectTableTextCoverageAsync(
+            distributionDocxPath,
+            pdfPath,
+            workDirectory,
+            cancellationToken).ConfigureAwait(false);
+
         var prefix = Path.Combine(outputDirectory, "page");
         var png = await processes.RunAsync(
             options.PdfToPngPath,
@@ -231,7 +241,120 @@ public sealed partial class DocumentRenderer(
             tocPageNumbers,
             tocMaxPageNumber,
             expectedHeadings,
-            matchedHeadings);
+            matchedHeadings,
+            warnings);
+    }
+
+    private async Task<IReadOnlyList<string>> InspectTableTextCoverageAsync(
+        string documentPath,
+        string pdfPath,
+        string workDirectory,
+        CancellationToken cancellationToken)
+    {
+        var expectedTexts = ExtractDistinctTableCellTexts(documentPath);
+        if (expectedTexts.Count == 0)
+        {
+            return [];
+        }
+
+        var textPath = Path.Combine(workDirectory, "preview-text.txt");
+        var result = await processes.RunAsync(
+            options.PdfToTextPath,
+            ["-layout", pdfPath, textPath],
+            workDirectory,
+            TimeSpan.FromSeconds(30),
+            cancellationToken,
+            RestrictedEnvironment(workDirectory)).ConfigureAwait(false);
+        if (result.ExitCode != 0 || !File.Exists(textPath))
+        {
+            return
+            [
+                "preview_table_text_coverage_unavailable: PDF table text coverage could not be verified. Do not claim that tables have no clipping or overflow based on this preview.",
+            ];
+        }
+
+        var pdfText = await File.ReadAllTextAsync(textPath, cancellationToken).ConfigureAwait(false);
+        var missingCount = FindMissingTableTexts(expectedTexts, pdfText).Count;
+        if (missingCount == 0)
+        {
+            return [];
+        }
+
+        return
+        [
+            $"preview_table_text_missing:{missingCount}/{expectedTexts.Count} distinct non-empty table cell texts were not found in the rendered PDF. Treat this as possible table clipping or overflow, disclose it to the user, and do not claim that visual table review passed.",
+        ];
+    }
+
+    internal static IReadOnlyList<string> ExtractDistinctTableCellTexts(string documentPath)
+    {
+        using var document = WordprocessingDocument.Open(documentPath, false);
+        var main = document.MainDocumentPart;
+        if (main?.Document is null)
+        {
+            return [];
+        }
+
+        return main.Document
+            .Descendants<W.TableCell>()
+            .Select(static cell => string.Concat(
+                cell.Descendants<W.Text>()
+                    .Where(static text => !text.Ancestors<W.DeletedRun>().Any())
+                    .Where(static text => !text.Ancestors<W.Run>().Any(run =>
+                        run.RunProperties?.GetFirstChild<W.Vanish>() is not null))
+                    .Select(static text => text.Text)))
+            .Select(NormalizeVisibleText)
+            .Where(static text => text.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    internal static IReadOnlyList<string> FindMissingTableTexts(
+        IReadOnlyList<string> expectedTexts,
+        string renderedText)
+    {
+        var normalizedRenderedText = NormalizeVisibleText(renderedText);
+        return expectedTexts
+            .Where(text => !IsTableCellTextCovered(text, normalizedRenderedText))
+            .ToArray();
+    }
+
+    private static bool IsTableCellTextCovered(string expectedText, string normalizedRenderedText)
+    {
+        if (normalizedRenderedText.Contains(expectedText, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        // pdftotext -layout emits a wrapped cell's continuation after the neighboring
+        // columns on the same visual row. Exact concatenation therefore fails even when
+        // all fragments are visible. For longer cells, require at least 80% of distinct
+        // adjacent text-element pairs; a fully clipped column remains well below this.
+        var elements = new List<string>();
+        var enumerator = StringInfo.GetTextElementEnumerator(expectedText);
+        while (enumerator.MoveNext())
+        {
+            elements.Add(enumerator.GetTextElement());
+        }
+
+        if (elements.Count < 5)
+        {
+            return false;
+        }
+
+        var bigrams = Enumerable.Range(0, elements.Count - 1)
+            .Select(index => elements[index] + elements[index + 1])
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var matchedBigramCount = bigrams.Count(bigram =>
+            normalizedRenderedText.Contains(bigram, StringComparison.Ordinal));
+        return matchedBigramCount * 5 >= bigrams.Length * 4;
+    }
+
+    private static string NormalizeVisibleText(string value)
+    {
+        var normalized = value.Normalize(NormalizationForm.FormKC);
+        return string.Concat(normalized.Where(static character => !char.IsWhiteSpace(character)));
     }
 
     internal static bool IsVerifiedTocStatus(

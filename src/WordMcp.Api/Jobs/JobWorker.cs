@@ -437,7 +437,8 @@ public sealed class JobWorker(
             new JobResult(
                 SourceSha256: RequiredInputSha(job),
                 PageCount: render.PageCount,
-                Artifacts: artifacts));
+                Artifacts: artifacts,
+                Warnings: RenderWarnings(render)));
     }
 
     private async Task<JobExecutionResult> ReplaceTextAsync(
@@ -531,7 +532,8 @@ public sealed class JobWorker(
                 AnalysisSummary: outputAnalysis.Summary,
                 SourceSha256: mutation.OutputSha256,
                 PageCount: render.PageCount,
-                Artifacts: artifacts));
+                Artifacts: artifacts,
+                Warnings: RenderWarnings(render)));
     }
 
     private async Task<JobExecutionResult> GenerateAsync(
@@ -637,10 +639,14 @@ public sealed class JobWorker(
                 SourceSha256: outputSha256,
                 PageCount: render.PageCount,
                 Artifacts: CreateRenderArtifacts(render, outputPath),
+                Warnings: RenderWarnings(render),
                 SectionKeys: job.DocumentDefinition.Sections
                     .Select(static section => section.SectionKey)
                     .ToArray()));
     }
+
+    private static IReadOnlyList<string>? RenderWarnings(RenderResult render) =>
+        render.Warnings.Count == 0 ? null : render.Warnings;
 
     private async Task<AnalysisSnapshot> GetMutationAnalysisAsync(
         WordJob job,

@@ -20,6 +20,8 @@ mcpServers:
     # headers.Authorization は設定しない。apiKey の Bearer 構成を使う。
     headers:
       X-LibreChat-User-ID: "{{LIBRECHAT_USER_ID}}"
-      # 次の conversation/message 候補は利用 version で必ず検証する。
+      # 次の conversation/message/attachment 候補は利用 version で必ず検証する。
       X-LibreChat-Conversation-ID: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
       X-LibreChat-Message-ID: "{{LIBRECHAT_BODY_MESSAGEID}}"
+      # 添付なしでも必ず '-' へ解決し、過去uploadへのfallbackを防ぐ。
+      X-LibreChat-Attachment-File-IDs: "{{LIBRECHAT_BODY_ATTACHMENTFILEIDS}}"

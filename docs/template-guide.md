@@ -121,10 +121,10 @@ Git commit author や運用者のメールアドレスを DOCX author へ自動�
 |---|---|
 | `default` | 管理者 scope の既定 template |
 | `none` | template なし |
-| `latest` | 同じ user scope の最新 upload DOCX／DOTX |
-| 明示 `file_id` | 同じ user scope の指定 upload |
+| `latest` | LibreChatでは現在メッセージ添付境界の単一upload DOCX／DOTX。header省略local clientでは同じuser scopeの最新upload |
+| 明示 `file_id` | LibreChatでは現在メッセージ添付境界内、header省略local clientでは同じuser scopeの指定upload |
 
-deployment template は管理者 scope、upload `latest` は user scope、draft は user+conversation scope です。`latest` をグローバル file として扱いません。明示 `file_id` を常に優先し、start 後に source を差し替えません。
+deployment templateは管理者scope、LibreChat uploadはuser directory＋現在メッセージ添付scope、draftはuser+conversation scopeです。`latest`をグローバルfileとして扱わず、複数の現在添付から更新時刻で選びません。明示`file_id`を常に優先し、start後にsourceを差し替えません。
 
 ## Template 作成手順
 

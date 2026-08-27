@@ -97,6 +97,107 @@ public sealed class InputFileResolverTests
         Assert.Equal("input_file_not_found", otherUserError.Code);
     }
 
+    [Fact]
+    public async Task LibreChatAttachmentScopeExcludesOlderUploadsFromLatestAndExplicitResolution()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        using var environment = new TestEnvironment();
+        var userDirectory = CreateUserDirectory(environment);
+        var current = Path.Combine(userDirectory, "current-id__current.docx");
+        var unrelated = Path.Combine(userDirectory, "unrelated-id__newer.docx");
+        await File.WriteAllBytesAsync(current, [1], TestContext.Current.CancellationToken);
+        await File.WriteAllBytesAsync(unrelated, [2], TestContext.Current.CancellationToken);
+        File.SetLastWriteTimeUtc(current, DateTime.UtcNow.AddMinutes(-2));
+        File.SetLastWriteTimeUtc(unrelated, DateTime.UtcNow.AddMinutes(-1));
+        var scopedCaller = Caller with
+        {
+            AttachmentFileIds = new HashSet<string>(["current-id"], StringComparer.Ordinal),
+        };
+        var resolver = CreateResolver(environment);
+
+        var latest = await resolver.SnapshotDocumentAsync(
+            scopedCaller,
+            Scope,
+            "latest",
+            NewSnapshotDirectory(environment),
+            CancellationToken.None);
+        var error = await Assert.ThrowsAsync<WordMcpException>(() => resolver.SnapshotDocumentAsync(
+            scopedCaller,
+            Scope,
+            "unrelated-id",
+            NewSnapshotDirectory(environment),
+            CancellationToken.None));
+
+        Assert.Equal("current-id", latest.SourceId);
+        Assert.Equal("input_file_not_found", error.Code);
+    }
+
+    [Fact]
+    public async Task EmptyLibreChatAttachmentScopeCannotReuseAnOlderUpload()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        using var environment = new TestEnvironment();
+        var userDirectory = CreateUserDirectory(environment);
+        await File.WriteAllBytesAsync(
+            Path.Combine(userDirectory, "older-id__old.docx"),
+            [1],
+            TestContext.Current.CancellationToken);
+        var scopedCaller = Caller with
+        {
+            AttachmentFileIds = new HashSet<string>(StringComparer.Ordinal),
+        };
+
+        var error = await Assert.ThrowsAsync<WordMcpException>(() => CreateResolver(environment).SnapshotDocumentAsync(
+            scopedCaller,
+            Scope,
+            "latest",
+            NewSnapshotDirectory(environment),
+            CancellationToken.None));
+
+        Assert.Equal("input_file_not_found", error.Code);
+    }
+
+    [Fact]
+    public async Task LatestRejectsMultipleCurrentWordAttachmentsInsteadOfGuessing()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        using var environment = new TestEnvironment();
+        var userDirectory = CreateUserDirectory(environment);
+        await File.WriteAllBytesAsync(
+            Path.Combine(userDirectory, "first-id__first.docx"),
+            [1],
+            TestContext.Current.CancellationToken);
+        await File.WriteAllBytesAsync(
+            Path.Combine(userDirectory, "second-id__second.dotx"),
+            [2],
+            TestContext.Current.CancellationToken);
+        var scopedCaller = Caller with
+        {
+            AttachmentFileIds = new HashSet<string>(["first-id", "second-id"], StringComparer.Ordinal),
+        };
+
+        var error = await Assert.ThrowsAsync<WordMcpException>(() => CreateResolver(environment).SnapshotDocumentAsync(
+            scopedCaller,
+            Scope,
+            "latest",
+            NewSnapshotDirectory(environment),
+            CancellationToken.None));
+
+        Assert.Equal("ambiguous_file_id", error.Code);
+    }
+
     [Theory]
     [InlineData("picture.png", ResolvedInputFormat.Png)]
     [InlineData("picture.jpeg", ResolvedInputFormat.Jpeg)]
